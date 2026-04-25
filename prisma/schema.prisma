@@ -1,0 +1,233 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_DATABASE_URL")
+}
+
+// ==================== USERS ====================
+
+model User {
+  id            String    @id @default(cuid())
+  email         String    @unique
+  password      String
+  name          String
+  phone         String?
+  avatar        String?
+  bio           String?
+  location      String?
+  region        String?   // Région du Cameroun (Centre, Littoral, Ouest, Nord-Ouest, Sud-Ouest, Sud, Est, Nord, Extrême-Nord, Adamaoua)
+  city          String?
+  role          String    @default("BOTH") // BUYER, SELLER, BOTH
+  plan          String    @default("FREE") // FREE, PREMIUM, VIP
+  planExpiresAt DateTime?
+  isVerified    Boolean   @default(false)
+  isOnline      Boolean   @default(false)
+  lastSeen      DateTime  @default(now())
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  ads            Ad[]
+  sentMessages   Message[]  @relation("SentMessages")
+  receivedMessages Message[] @relation("ReceivedMessages")
+  conversations1 Conversation[] @relation("ConversationUser1")
+  conversations2 Conversation[] @relation("ConversationUser2")
+  notifications  Notification[]
+  transactionsAsBuyer  Transaction[] @relation("BuyerTransactions")
+  transactionsAsSeller Transaction[] @relation("SellerTransactions")
+  reviewsGiven   Review[]  @relation("Reviewer")
+  reviewsReceived Review[] @relation("Reviewed")
+  favorites      Favorite[]
+}
+
+// ==================== CATEGORIES ====================
+
+model Category {
+  id        String   @id @default(cuid())
+  name      String   @unique
+  icon      String?  // Lucide icon name
+  slug      String   @unique
+  order     Int      @default(0)
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+
+  ads       Ad[]
+}
+
+// ==================== ADS (Annonces) ====================
+
+model Ad {
+  id            String    @id @default(cuid())
+  title         String
+  description   String
+  price         Float?
+  priceUnit     String?   // unité: kg, tonne, sac, pièce, m², hectare, lot, forfait
+  type          String    @default("OFFER") // OFFER, DEMAND, SERVICE
+  categorySlug  String    // category slug
+  category      Category  @relation(fields: [categorySlug], references: [slug])
+  condition     String?   // NEW, USED, FRESH, PROCESSED
+  quantity      String?
+  location      String?
+  region        String?
+  city          String?
+  images        String    @default("[]") // JSON array of image URLs
+  status        String    @default("ACTIVE") // ACTIVE, SOLD, EXPIRED, PENDING, REJECTED
+  isFeatured    Boolean   @default(false)
+  isUrgent      Boolean   @default(false)
+  viewsCount    Int       @default(0)
+  phone         String?   // override phone for this ad
+  negociable    Boolean   @default(true)
+  delivery      Boolean   @default(false) // livraison disponible
+  tags          String    @default("[]") // JSON array
+  expiresAt     DateTime?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  authorId      String
+  author        User      @relation(fields: [authorId], references: [id], onDelete: Cascade)
+
+  transactions  Transaction[]
+  reviews       Review[]
+  conversations Conversation[]
+  favorites     Favorite[]
+}
+
+// ==================== CONVERSATIONS ====================
+
+model Conversation {
+  id            String    @id @default(cuid())
+  user1Id       String
+  user2Id       String
+  adId          String?
+  lastMessageAt DateTime  @default(now())
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  user1         User      @relation("ConversationUser1", fields: [user1Id], references: [id], onDelete: Cascade)
+  user2         User      @relation("ConversationUser2", fields: [user2Id], references: [id], onDelete: Cascade)
+  ad            Ad?       @relation(fields: [adId], references: [id], onDelete: SetNull)
+  messages      Message[]
+}
+
+// ==================== MESSAGES ====================
+
+model Message {
+  id             String   @id @default(cuid())
+  content        String
+  type           String   @default("TEXT") // TEXT, IMAGE, SYSTEM
+  imageUrl       String?
+  isRead         Boolean  @default(false)
+  readAt         DateTime?
+  createdAt      DateTime @default(now())
+
+  conversationId String
+  conversation   Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  senderId       String
+  sender         User      @relation("SentMessages", fields: [senderId], references: [id], onDelete: Cascade)
+  receiverId     String
+  receiver       User      @relation("ReceivedMessages", fields: [receiverId], references: [id], onDelete: Cascade)
+}
+
+// ==================== NOTIFICATIONS ====================
+
+model Notification {
+  id        String   @id @default(cuid())
+  userId    String
+  type      String   // NEW_MESSAGE, AD_APPROVED, AD_SOLD, NEW_REVIEW, PAYMENT_RECEIVED, PLAN_EXPIRED, SYSTEM
+  title     String
+  content   String
+  link      String?  // navigation link
+  isRead    Boolean  @default(false)
+  readAt    DateTime?
+  createdAt DateTime @default(now())
+
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+// ==================== TRANSACTIONS (Paiements) ====================
+
+model Transaction {
+  id              String   @id @default(cuid())
+  adId            String?
+  buyerId         String
+  sellerId        String
+  amount          Float    // montant total
+  platformFee     Float    // 2% de commission
+  sellerAmount    Float    // montant reçu par le vendeur
+  currency        String   @default("FCFA") // Franc CFA
+  status          String   @default("PENDING") // PENDING, COMPLETED, FAILED, REFUNDED
+  paymentMethod   String   // CARD, ORANGE_MONEY, MTN_MONEY
+  paymentRef      String?  // référence du paiement externe
+  description     String?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  ad              Ad?      @relation(fields: [adId], references: [id], onDelete: SetNull)
+  buyer           User     @relation("BuyerTransactions", fields: [buyerId], references: [id])
+  seller          User     @relation("SellerTransactions", fields: [sellerId], references: [id])
+}
+
+// ==================== REVIEWS ====================
+
+model Review {
+  id        String   @id @default(cuid())
+  rating    Int      // 1-5
+  comment   String?
+  createdAt DateTime @default(now())
+
+  adId      String
+  ad        Ad       @relation(fields: [adId], references: [id], onDelete: Cascade)
+  reviewerId String
+  reviewer  User     @relation("Reviewer", fields: [reviewerId], references: [id], onDelete: Cascade)
+  reviewedId String
+  reviewed  User     @relation("Reviewed", fields: [reviewedId], references: [id], onDelete: Cascade)
+}
+
+// ==================== ADVERTISEMENTS (Publicités) ====================
+
+model Advertisement {
+  id        String   @id @default(cuid())
+  title     String
+  imageUrl  String
+  linkUrl   String?
+  position  String   @default("SIDEBAR") // SIDEBAR, BANNER_TOP, BANNER_BOTTOM, IN_FEED
+  isActive  Boolean  @default(true)
+  clicksCount Int    @default(0)
+  impressionsCount Int @default(0)
+  targetPlan String @default("FREE") // show to which plan users
+  priority  Int      @default(0) // higher = shown first
+  startsAt  DateTime?
+  expiresAt DateTime?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+// ==================== FAVORIS ====================
+
+model Favorite {
+  id        String   @id @default(cuid())
+  userId    String
+  adId      String
+  createdAt DateTime @default(now())
+
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  ad        Ad       @relation(fields: [adId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, adId])
+}
+
+// ==================== PAYMENT PLANS ====================
+
+model PaymentPlan {
+  id          String   @id @default(cuid())
+  name        String   @unique // FREE, PREMIUM, VIP
+  displayName String
+  price       Float    @default(0) // prix mensuel en FCFA
+  features    String   @default("[]") // JSON array of features
+  maxAds      Int      @default(10)
+  isPopular   Boolean  @default(false)
+  createdAt   DateTime @default(now())
+}
