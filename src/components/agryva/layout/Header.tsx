@@ -115,9 +115,9 @@ export function Header() {
             <Leaf className="h-5 w-5 text-white" />
           </div>
           <div className="flex items-center gap-0.5">
-            <span className="text-xl font-bold text-emerald-700">Agr</span>
-            <span className="text-xl font-bold text-orange-500">y</span>
-            <span className="text-xl font-bold text-emerald-700">va</span>
+            <span className="text-xl font-bold text-emerald-700">Ag</span>
+            <span className="text-xl font-bold text-orange-500">r</span>
+            <span className="text-xl font-bold text-emerald-700">yva</span>
           </div>
         </div>
 

@@ -1,20 +1,16 @@
 'use client'
 
-import { useState, useEffect, useCallback } from 'react'
-import { useAppStore, type Category, type Ad } from '../store'
+import { useState, useEffect } from 'react'
+import { useAppStore, type Ad, type Category, type Advertisement } from '../store'
 import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
-import { Card, CardContent } from '@/components/ui/card'
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Skeleton } from '@/components/ui/skeleton'
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
-import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
-import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from '@/components/ui/sheet'
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { Separator } from '@/components/ui/separator'
+import { Textarea } from '@/components/ui/textarea'
 import { toast } from 'sonner'
 import {
-  Search,
-  SlidersHorizontal,
   MapPin,
   Clock,
   Eye,
@@ -22,47 +18,31 @@ import {
   Zap,
   Award,
   ChevronLeft,
-  ChevronRight,
-  X,
+  Home,
+  MessageCircle,
+  ShoppingCart,
+  Shield,
+  Phone,
+  Truck,
+  Tag,
+  Share2,
   Heart,
-  Wheat,
-  Apple,
-  Fish,
-  Tractor,
-  TreePine,
-  Bean,
-  Carrot,
-  FlaskConical,
-  Wrench,
-  MapPinIcon,
-  Package,
-  GalleryHorizontalEnd,
-  Leaf,
+  ChevronRight,
+  AlertTriangle,
+  Link as LinkIcon,
+  Check,
+  Languages,
 } from 'lucide-react'
-import { formatDistanceToNow } from 'date-fns'
-import { fr, en } from 'date-fns/locale'
-import { motion, AnimatePresence } from 'framer-motion'
 import { useT } from '@/lib/i18n'
-
-const CAMEROON_REGIONS = [
-  'Centre', 'Littoral', 'Ouest', 'Nord-Ouest', 'Sud-Ouest',
-  'Sud', 'Est', 'Nord', 'Extrême-Nord', 'Adamaoua',
-]
-
-const CATEGORY_ICONS: Record<string, React.ReactNode> = {
-  Wheat: <Wheat className="h-8 w-8" />,
-  Apple: <Apple className="h-8 w-8" />,
-  Fish: <Fish className="h-8 w-8" />,
-  Tractor: <Tractor className="h-8 w-8" />,
-  TreePine: <TreePine className="h-8 w-8" />,
-  Bean: <Bean className="h-8 w-8" />,
-  Carrot: <Carrot className="h-8 w-8" />,
-  FlaskConical: <FlaskConical className="h-8 w-8" />,
-  Wrench: <Wrench className="h-8 w-8" />,
-  MapPin: <MapPinIcon className="h-8 w-8" />,
-  Package: <Package className="h-8 w-8" />,
-  GalleryHorizontalEnd: <GalleryHorizontalEnd className="h-8 w-8" />,
-}
+import { LanguageSelector } from '@/components/agryva/common/LanguageSelector'
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from '@/components/ui/popover'
+import { formatDistanceToNow, format } from 'date-fns'
+import { fr } from 'date-fns/locale'
+import { motion } from 'framer-motion'
 
 function formatPrice(price?: number | null, unit?: string | null) {
   if (price == null) return 'Prix sur demande'
@@ -78,608 +58,926 @@ function formatRelativeTime(dateStr: string) {
   }
 }
 
-// ==================== AD CARD ====================
-function AdCard({ ad, onClick }: { ad: Ad; onClick: () => void }) {
-  const { favoriteIds, toggleFavorite, currentUser, navigateTo } = useAppStore()
-  const { t } = useT()
-  const images = typeof ad.images === 'string' ? JSON.parse(ad.images || '[]') : (ad.images || [])
-  const hasImage = images.length > 0
-  const isFavorited = favoriteIds.includes(ad.id)
-
-  const handleToggleFavorite = (e: React.MouseEvent) => {
-    e.stopPropagation()
-    if (!currentUser) {
-      toast.error(t('ads.loginRequired'))
-      navigateTo('login')
-      return
-    }
-    toggleFavorite(ad.id)
-    toast.success(isFavorited ? t('ads.removedFavorite') : t('ads.addedFavorite'))
+function formatDate(dateStr: string) {
+  try {
+    return format(new Date(dateStr), 'd MMMM yyyy', { locale: fr })
+  } catch {
+    return dateStr
   }
+}
 
+function getTypeBadge(type: string, t: (key: string) => string) {
+  switch (type) {
+    case 'OFFER':
+      return <Badge className="bg-emerald-100 text-emerald-800 hover:bg-emerald-200 border-0">{t('ad.offer')}</Badge>
+    case 'DEMAND':
+      return <Badge className="bg-orange-100 text-orange-800 hover:bg-orange-200 border-0">{t('ad.demand')}</Badge>
+    case 'SERVICE':
+      return <Badge className="bg-purple-100 text-purple-800 hover:bg-purple-200 border-0">{t('ad.service')}</Badge>
+    default:
+      return <Badge variant="secondary">{type}</Badge>
+  }
+}
+
+function getTypeGradient(type: string) {
+  switch (type) {
+    case 'OFFER':
+      return 'from-emerald-400 to-green-600'
+    case 'DEMAND':
+      return 'from-orange-400 to-amber-600'
+    case 'SERVICE':
+      return 'from-purple-400 to-violet-600'
+    default:
+      return 'from-gray-400 to-gray-600'
+  }
+}
+
+function getConditionLabel(condition?: string | null) {
+  switch (condition) {
+    case 'NEW': return 'Nouveau'
+    case 'USED': return 'Usagé'
+    case 'FRESH': return 'Frais'
+    case 'PROCESSED': return 'Transformé'
+    default: return condition || 'Non spécifié'
+  }
+}
+
+function RatingStars({ rating, size = 'sm' }: { rating: number; size?: 'sm' | 'md' | 'lg' }) {
+  const sizeClass = size === 'lg' ? 'h-6 w-6' : size === 'md' ? 'h-4 w-4' : 'h-3 w-3'
   return (
-    <Card
-      className="group cursor-pointer overflow-hidden border border-gray-200 hover:border-emerald-300 hover:shadow-lg transition-all duration-300"
-      onClick={onClick}
-    >
-      {/* Image */}
-      <div className="relative aspect-[4/3] overflow-hidden">
-        {hasImage ? (
-          <img
-            src={images[0]}
-            alt={ad.title}
-            className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
-          />
-        ) : (
-          <div className="w-full h-full bg-gradient-to-br from-emerald-400 to-green-600 flex items-center justify-center text-white">
-            <Leaf className="h-12 w-12" />
-          </div>
-        )}
-        {/* Badges overlay */}
-        <div className="absolute top-2 left-2 flex flex-col gap-1">
-          {ad.type === 'OFFER' && (
-            <Badge className="bg-emerald-100 text-emerald-800 hover:bg-emerald-200 border-0">{t('ad.offer')}</Badge>
-          )}
-          {ad.type === 'DEMAND' && (
-            <Badge className="bg-orange-100 text-orange-800 hover:bg-orange-200 border-0">{t('ad.demand')}</Badge>
-          )}
-          {ad.type === 'SERVICE' && (
-            <Badge className="bg-purple-100 text-purple-800 hover:bg-purple-200 border-0">{t('ad.service')}</Badge>
-          )}
-          {ad.isUrgent && (
-            <Badge className="bg-red-500 text-white hover:bg-red-600 border-0 text-xs">
-              <Zap className="h-3 w-3 mr-1" /> {t('ad.urgent')}
-            </Badge>
-          )}
-        </div>
-        {ad.isFeatured && (
-          <div className="absolute top-2 right-8">
-            <Badge className="bg-amber-500 text-white hover:bg-amber-600 border-0 text-xs">
-              <Award className="h-3 w-3 mr-1" /> {t('ad.featuredBadge')}
-            </Badge>
-          </div>
-        )}
-        {/* Favorite button */}
-        <button
-          onClick={handleToggleFavorite}
-          className="absolute top-2 right-2 z-10 flex h-7 w-7 items-center justify-center rounded-full bg-white/80 shadow-sm transition-all hover:bg-white hover:scale-110"
-          title={isFavorited ? t('ads.removeFavorite') : t('ads.addFavorite')}
-        >
-          <Heart className={`h-4 w-4 transition-colors ${isFavorited ? 'fill-red-500 text-red-500' : 'text-gray-500'}`} />
-        </button>
-      </div>
-
-      <CardContent className="p-4">
-        {/* Title */}
-        <h3 className="font-semibold text-sm text-gray-900 line-clamp-2 mb-2 group-hover:text-emerald-700 transition-colors">
-          {ad.title}
-        </h3>
-
-        {/* Price */}
-        <p className="text-lg font-bold text-emerald-700 mb-2">
-          {ad.price != null ? formatPrice(ad.price, ad.priceUnit) : t('ad.priceOnRequest')}
-        </p>
-
-        {/* Location & Time */}
-        <div className="flex items-center gap-3 text-xs text-gray-500 mb-3">
-          {(ad.region || ad.city) && (
-            <span className="flex items-center gap-1">
-              <MapPin className="h-3 w-3" />
-              {[ad.region, ad.city].filter(Boolean).join(', ')}
-            </span>
-          )}
-          <span className="flex items-center gap-1">
-            <Clock className="h-3 w-3" />
-            {formatRelativeTime(ad.createdAt)}
-          </span>
-        </div>
-
-        {/* Author & views */}
-        <div className="flex items-center justify-between">
-          <span className="text-xs text-gray-500">
-            {t('ads.by')} <span className="font-medium text-gray-700">{ad.author?.name || t('ads.anonymous')}</span>
-          </span>
-          <span className="flex items-center gap-1 text-xs text-gray-400">
-            <Eye className="h-3 w-3" />
-            {ad.viewsCount}
-          </span>
-        </div>
-      </CardContent>
-    </Card>
+    <div className="flex gap-0.5">
+      {Array.from({ length: 5 }, (_, i) => (
+        <Star
+          key={i}
+          className={`${sizeClass} ${i < Math.round(rating) ? 'fill-amber-400 text-amber-400' : 'text-gray-300'}`}
+        />
+      ))}
+    </div>
   )
 }
 
-// ==================== SKELETON CARD ====================
-function SkeletonCard() {
+// ==================== IMAGE GALLERY ====================
+function ImageGallery({ images, title, type }: { images: string[]; title: string; type: string }) {
+  const [selectedIndex, setSelectedIndex] = useState(0)
+  const hasImages = images.length > 0
+
+  if (!hasImages) {
+    return (
+      <div className={`aspect-[16/10] md:aspect-[16/9] bg-gradient-to-br ${getTypeGradient(type)} rounded-xl flex items-center justify-center text-white`}>
+        <span className="text-6xl opacity-30">🌾</span>
+      </div>
+    )
+  }
+
   return (
-    <Card className="overflow-hidden">
-      <Skeleton className="aspect-[4/3] w-full" />
-      <CardContent className="p-4 space-y-3">
-        <Skeleton className="h-4 w-full" />
-        <Skeleton className="h-4 w-2/3" />
-        <Skeleton className="h-6 w-1/2" />
-        <div className="flex justify-between">
-          <Skeleton className="h-3 w-24" />
-          <Skeleton className="h-3 w-16" />
+    <div className="space-y-3">
+      {/* Main image */}
+      <div className="aspect-[16/10] md:aspect-[16/9] rounded-xl overflow-hidden bg-gray-100">
+        <img
+          src={images[selectedIndex]}
+          alt={`${title} - Image ${selectedIndex + 1}`}
+          className="w-full h-full object-cover"
+        />
+      </div>
+
+      {/* Thumbnails */}
+      {images.length > 1 && (
+        <div className="flex gap-2 overflow-x-auto pb-1">
+          {images.map((img, idx) => (
+            <button
+              key={idx}
+              onClick={() => setSelectedIndex(idx)}
+              className={`shrink-0 w-20 h-16 rounded-lg overflow-hidden border-2 transition-all ${
+                idx === selectedIndex
+                  ? 'border-emerald-600 ring-2 ring-emerald-200'
+                  : 'border-gray-200 hover:border-gray-400'
+              }`}
+            >
+              <img src={img} alt={`${title} - Miniature ${idx + 1}`} className="w-full h-full object-cover" />
+            </button>
+          ))}
         </div>
-      </CardContent>
-    </Card>
-  )
-}
-
-// ==================== MAIN ADS PAGE ====================
-export default function AdsPage() {
-  const { navigateTo, searchQuery, filters, setFilters, resetFilters, pageParams } = useAppStore()
-  const { t } = useT()
-
-  const isFeaturedMode = pageParams?.featured === true
-
-  const [ads, setAds] = useState<Ad[]>([])
-  const [categories, setCategories] = useState<Category[]>([])
-  const [loading, setLoading] = useState(true)
-  const [totalResults, setTotalResults] = useState(0)
-  const [currentPageNum, setCurrentPageNum] = useState(1)
-  const [totalPages, setTotalPages] = useState(0)
-  const [sortBy, setSortBy] = useState('recent')
-  const [mobileFiltersOpen, setMobileFiltersOpen] = useState(false)
-  const limit = 12
-
-  // Fetch categories
-  useEffect(() => {
-    async function fetchCategories() {
-      try {
-        const res = await fetch('/api/agryva/categories/')
-        const json = await res.json()
-        if (json.success) setCategories(json.data)
-      } catch {
-        toast.error(t('ads.errorCategories'))
-      }
-    }
-    fetchCategories()
-  }, [])
-
-  // Fetch ads
-  const fetchAds = useCallback(async () => {
-    setLoading(true)
-    try {
-      if (isFeaturedMode) {
-        // In featured mode, fetch from the featured API
-        const res = await fetch('/api/agryva/ads/featured')
-        const json = await res.json()
-        if (json.success) {
-          let data = json.data || []
-          if (sortBy === 'popular') {
-            data = [...data].sort((a, b) => (b.viewsCount || 0) - (a.viewsCount || 0))
-          }
-          if (sortBy === 'price-asc') {
-            data = [...data].sort((a, b) => (a.price || 0) - (b.price || 0))
-          } else if (sortBy === 'price-desc') {
-            data = [...data].sort((a, b) => (b.price || 0) - (a.price || 0))
-          }
-          setAds(data)
-          setTotalResults(data.length)
-          setTotalPages(1)
-        }
-      } else {
-        const params = new URLSearchParams()
-        if (searchQuery) params.set('q', searchQuery)
-        if (filters.type) params.set('type', filters.type)
-        if (filters.category) params.set('category', filters.category)
-        if (filters.region) params.set('region', filters.region)
-        if (filters.minPrice) params.set('minPrice', filters.minPrice)
-        if (filters.maxPrice) params.set('maxPrice', filters.maxPrice)
-        params.set('page', currentPageNum.toString())
-        params.set('limit', limit.toString())
-
-        const res = await fetch(`/api/agryva/search/?${params.toString()}`)
-        const json = await res.json()
-        if (json.success) {
-          let data = json.data || []
-          if (sortBy === 'popular') {
-            data = [...data].sort((a, b) => (b.viewsCount || 0) - (a.viewsCount || 0))
-          }
-          if (sortBy === 'price-asc') {
-            data = [...data].sort((a, b) => (a.price || 0) - (b.price || 0))
-          } else if (sortBy === 'price-desc') {
-            data = [...data].sort((a, b) => (b.price || 0) - (a.price || 0))
-          }
-          setAds(data)
-          setTotalResults(json.count || 0)
-          setTotalPages(json.totalPages || 0)
-        }
-      }
-    } catch {
-      toast.error(t('ads.errorAds'))
-    } finally {
-      setLoading(false)
-    }
-  }, [searchQuery, filters, currentPageNum, sortBy, limit, isFeaturedMode])
-
-  useEffect(() => {
-    fetchAds()
-  }, [fetchAds])
-
-  // Reset page when filters change
-  useEffect(() => {
-    setCurrentPageNum(1)
-  }, [searchQuery, filters, sortBy])
-
-  function handleFilterChange(key: string, value: string) {
-    setFilters({ [key]: value })
-  }
-
-  function handleResetFilters() {
-    resetFilters()
-    setCurrentPageNum(1)
-  }
-
-  function handleAdClick(ad: Ad) {
-    navigateTo('ad-detail', { id: ad.id })
-  }
-
-  const activeFilterCount = [
-    filters.type, filters.category, filters.region, filters.minPrice, filters.maxPrice
-  ].filter(Boolean).length
-
-  // ==================== FILTER SIDEBAR ====================
-  const FilterSidebar = () => (
-    <div className="space-y-6">
-      {/* Type filter */}
-      <div>
-        <h3 className="font-semibold text-sm text-gray-700 mb-3">{t('ads.type')}</h3>
-        <Tabs
-          value={filters.type || 'all'}
-          onValueChange={(v) => handleFilterChange('type', v === 'all' ? '' : v)}
-        >
-          <TabsList className="w-full bg-gray-100">
-            <TabsTrigger value="all" className="flex-1 text-xs">{t('ads.all')}</TabsTrigger>
-            <TabsTrigger value="OFFER" className="flex-1 text-xs">{t('ad.offer')}</TabsTrigger>
-            <TabsTrigger value="DEMAND" className="flex-1 text-xs">{t('ad.demand')}</TabsTrigger>
-            <TabsTrigger value="SERVICE" className="flex-1 text-xs">{t('ad.service')}</TabsTrigger>
-          </TabsList>
-        </Tabs>
-      </div>
-
-      <Separator />
-
-      {/* Category filter */}
-      <div>
-        <h3 className="font-semibold text-sm text-gray-700 mb-3">{t('ads.category')}</h3>
-        <Select
-          value={filters.category || '_all'}
-          onValueChange={(v) => handleFilterChange('category', v === '_all' ? '' : v)}
-        >
-          <SelectTrigger>
-            <SelectValue placeholder={t('ads.allCategories')} />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="_all">{t('ads.allCategories')}</SelectItem>
-            {categories.map((cat) => (
-              <SelectItem key={cat.slug} value={cat.slug}>
-                {cat.name}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-      </div>
-
-      <Separator />
-
-      {/* Region filter */}
-      <div>
-        <h3 className="font-semibold text-sm text-gray-700 mb-3">{t('ads.region')}</h3>
-        <Select
-          value={filters.region || '_all'}
-          onValueChange={(v) => handleFilterChange('region', v === '_all' ? '' : v)}
-        >
-          <SelectTrigger>
-            <SelectValue placeholder={t('ads.allRegions')} />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="_all">{t('ads.allRegions')}</SelectItem>
-            {CAMEROON_REGIONS.map((region) => (
-              <SelectItem key={region} value={region}>
-                {region}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-      </div>
-
-      <Separator />
-
-      {/* Price range */}
-      <div>
-        <h3 className="font-semibold text-sm text-gray-700 mb-3">{t('ads.price')}</h3>
-        <div className="flex gap-2 items-center">
-          <Input
-            type="number"
-            placeholder={t('ads.min')}
-            value={filters.minPrice}
-            onChange={(e) => handleFilterChange('minPrice', e.target.value)}
-            className="h-9 text-sm"
-          />
-          <span className="text-gray-400">—</span>
-          <Input
-            type="number"
-            placeholder={t('ads.max')}
-            value={filters.maxPrice}
-            onChange={(e) => handleFilterChange('maxPrice', e.target.value)}
-            className="h-9 text-sm"
-          />
-        </div>
-      </div>
-
-      <Separator />
-
-      {/* Reset button */}
-      {activeFilterCount > 0 && (
-        <Button
-          variant="outline"
-          className="w-full text-emerald-700 border-emerald-300 hover:bg-emerald-50"
-          onClick={handleResetFilters}
-        >
-          <X className="h-4 w-4 mr-2" />
-          {t('ads.reset')} ({activeFilterCount})
-        </Button>
       )}
     </div>
   )
+}
+
+// ==================== REVIEW FORM ====================
+function ReviewForm({
+  adId,
+  authorId,
+  currentUser,
+  onSubmitted,
+}: {
+  adId: string
+  authorId: string
+  currentUser: ReturnType<typeof useAppStore>['currentUser']
+  onSubmitted: () => void
+}) {
+  const { t } = useT()
+  const [rating, setRating] = useState(0)
+  const [hoverRating, setHoverRating] = useState(0)
+  const [comment, setComment] = useState('')
+  const [submitting, setSubmitting] = useState(false)
+
+  if (!currentUser || currentUser.id === authorId) return null
+
+  async function handleSubmit() {
+    if (rating === 0) {
+      toast.error('Veuillez sélectionner une note')
+      return
+    }
+    setSubmitting(true)
+    try {
+      const res = await fetch('/api/agryva/reviews/', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          adId,
+          reviewerId: currentUser.id,
+          reviewedId: authorId,
+          rating,
+          comment: comment.trim() || null,
+        }),
+      })
+      const json = await res.json()
+      if (json.success) {
+        toast.success('Avis publié avec succès !')
+        setRating(0)
+        setComment('')
+        onSubmitted()
+      } else {
+        toast.error(json.error || 'Erreur lors de la publication')
+      }
+    } catch {
+      toast.error('Erreur réseau')
+    } finally {
+      setSubmitting(false)
+    }
+  }
+
+  return (
+    <Card className="border-gray-200">
+      <CardHeader>
+        <CardTitle className="text-base">{t('detail.leaveReview')}</CardTitle>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        <div>
+          <p className="text-sm text-gray-600 mb-2">{t('detail.yourRating')}</p>
+          <div className="flex gap-1">
+            {Array.from({ length: 5 }, (_, i) => (
+              <button key={i} onClick={() => setRating(i + 1)} onMouseEnter={() => setHoverRating(i + 1)} onMouseLeave={() => setHoverRating(0)}>
+                <Star
+                  className={`h-8 w-8 transition-colors ${
+                    i < (hoverRating || rating)
+                      ? 'fill-amber-400 text-amber-400'
+                      : 'text-gray-300 hover:text-amber-300'
+                  }`}
+                />
+              </button>
+            ))}
+          </div>
+        </div>
+        <Textarea
+          placeholder={t('detail.shareExperience')}
+          value={comment}
+          onChange={(e) => setComment(e.target.value)}
+          rows={3}
+        />
+        <Button
+          onClick={handleSubmit}
+          disabled={submitting || rating === 0}
+          className="bg-emerald-600 hover:bg-emerald-700 w-full sm:w-auto"
+        >
+          {submitting ? 'Publication...' : t('detail.publishReview')}
+        </Button>
+      </CardContent>
+    </Card>
+  )
+}
+
+// ==================== MAIN DETAIL PAGE ====================
+export default function AdDetailPage() {
+  const { t } = useT()
+  const { pageParams, navigateTo, currentUser, favoriteIds, toggleFavorite, translationResult, setTranslationResult } = useAppStore()
+  const adId = (pageParams?.id || pageParams?.adId) as string
+  const slugParam = pageParams?.slug as string
+  const categoryParam = pageParams?.category as string
+
+  const [ad, setAd] = useState<(Ad & { avgRating?: number; reviews?: any[]; category?: Category }) | null>(null)
+  const [similarAds, setSimilarAds] = useState<Ad[]>([])
+  const [adspaceBanner, setAdspaceBanner] = useState<Advertisement | null>(null)
+  const [loading, setLoading] = useState(true)
+  const [contacting, setContacting] = useState(false)
+  const [linkCopied, setLinkCopied] = useState(false)
+
+  const isFavorited = ad ? favoriteIds.includes(ad.id) : false
+
+  const handleToggleFavorite = () => {
+    if (!currentUser) {
+      toast.error('Veuillez vous connecter pour ajouter aux favoris')
+      navigateTo('login')
+      return
+    }
+    if (!ad) return
+    toggleFavorite(ad.id)
+    toast.success(isFavorited ? 'Retiré des favoris' : 'Ajouté aux favoris')
+  }
+
+  const adUrl = typeof window !== 'undefined' ? window.location.href : ''
+  const shareText = ad ? `Découvrez: ${ad.title} - Agryva` : ''
+
+  const handleCopyLink = async () => {
+    try {
+      await navigator.clipboard.writeText(adUrl)
+      setLinkCopied(true)
+      toast.success('Lien copié !')
+      setTimeout(() => setLinkCopied(false), 2000)
+    } catch {
+      toast.error('Impossible de copier le lien')
+    }
+  }
+
+  // Clear translation when leaving ad detail
+  useEffect(() => {
+    return () => {
+      setTranslationResult(null)
+    }
+  }, [setTranslationResult])
+
+  useEffect(() => {
+    if (!adId && !slugParam) return
+
+    async function fetchAd() {
+      setLoading(true)
+      try {
+        let url: string
+        if (adId) {
+          // Direct ID lookup (internal navigation)
+          url = `/api/agryva/ads/${adId}`
+        } else {
+          // Slug-based lookup (page refresh from URL)
+          const sp = new URLSearchParams()
+          if (categoryParam) sp.set('category', categoryParam)
+          if (slugParam) sp.set('slug', slugParam)
+          url = `/api/agryva/ads/slug?${sp.toString()}`
+        }
+        const res = await fetch(url)
+        const json = await res.json()
+        if (json.success) {
+          setAd(json.data)
+        } else {
+          toast.error('Annonce introuvable')
+          navigateTo('ads')
+        }
+      } catch {
+        toast.error('Erreur lors du chargement')
+      } finally {
+        setLoading(false)
+      }
+    }
+
+    fetchAd()
+  }, [adId, slugParam, categoryParam, navigateTo])
+
+  // Fetch similar ads when ad data loads
+  useEffect(() => {
+    if (!ad?.categorySlug || !ad?.id) return
+
+    async function fetchSimilar() {
+      try {
+        const params = new URLSearchParams()
+        params.set('category', ad.categorySlug)
+        params.set('limit', '4')
+        const res = await fetch(`/api/agryva/search/?${params.toString()}`)
+        const json = await res.json()
+        if (json.success) {
+          setSimilarAds(json.data.filter((a: Ad) => a.id !== ad.id).slice(0, 4))
+        }
+      } catch { /* ignore */ }
+    }
+    fetchSimilar()
+  }, [ad?.categorySlug, ad?.id])
+
+  // Fetch adspace banner
+  useEffect(() => {
+    async function fetchBanner() {
+      try {
+        const res = await fetch('/api/agryva/adspace/?position=SIDEBAR')
+        const json = await res.json()
+        if (json.success && json.data.length > 0) {
+          setAdspaceBanner(json.data[0])
+        }
+      } catch { /* ignore */ }
+    }
+    fetchBanner()
+  }, [])
+
+  // Translation handler for LanguageSelector
+  function handleTranslated(result: { translatedText: string; translatedTitle: string; translatedDescription: string; language: string }) {
+    setTranslationResult({
+      title: result.translatedTitle || ad?.title || '',
+      description: result.translatedDescription || result.translatedText || '',
+      language: result.language,
+      show: true,
+    })
+  }
+
+  const showTranslation = translationResult?.show === true
+
+  async function handleContact() {
+    if (!currentUser) {
+      toast.error('Veuillez vous connecter pour contacter le vendeur')
+      navigateTo('login')
+      return
+    }
+    if (!ad) return
+
+    setContacting(true)
+    try {
+      const res = await fetch('/api/agryva/messages/conversation/', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          userId: currentUser.id,
+          otherUserId: ad.authorId,
+          adId: ad.id,
+        }),
+      })
+      const json = await res.json()
+      if (json.success) {
+        toast.success('Conversation créée !')
+        navigateTo('messages', { conversationId: json.data.id })
+      } else {
+        toast.error(json.error || 'Erreur')
+      }
+    } catch {
+      toast.error('Erreur réseau')
+    } finally {
+      setContacting(false)
+    }
+  }
+
+  function handleBuyNow() {
+    if (!currentUser) {
+      toast.error('Veuillez vous connecter')
+      navigateTo('login')
+      return
+    }
+    if (!ad) return
+    navigateTo('payment', { adId: ad.id, sellerId: ad.authorId })
+  }
+
+  // Loading skeleton
+  if (loading || !ad) {
+    return (
+      <div className="min-h-screen bg-white">
+        <div className="max-w-7xl mx-auto px-4 py-6">
+          <Skeleton className="h-6 w-96 mb-6" />
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+            <div className="lg:col-span-2 space-y-4">
+              <Skeleton className="aspect-[16/9] w-full rounded-xl" />
+              <Skeleton className="h-8 w-3/4" />
+              <Skeleton className="h-6 w-1/4" />
+              <div className="space-y-2">
+                <Skeleton className="h-4 w-full" />
+                <Skeleton className="h-4 w-full" />
+                <Skeleton className="h-4 w-2/3" />
+              </div>
+            </div>
+            <div className="space-y-4">
+              <Skeleton className="h-40 w-full rounded-xl" />
+              <Skeleton className="h-60 w-full rounded-xl" />
+            </div>
+          </div>
+        </div>
+      </div>
+    )
+  }
+
+  const images = typeof ad.images === 'string' ? JSON.parse(ad.images || '[]') : (ad.images || [])
+  const tags = typeof ad.tags === 'string' ? JSON.parse(ad.tags || '[]') : (ad.tags || [])
+  const reviews = ad.reviews || []
 
   return (
     <div className="min-h-screen bg-white">
-      {/* Page Header */}
-      <div className="bg-gradient-to-r from-emerald-600 to-green-700 py-8 px-4">
-        <div className="max-w-7xl mx-auto">
-          <h1 className="text-2xl md:text-3xl font-bold text-white mb-2">
-            {isFeaturedMode ? t('ads.featuredTitle') : t('ads.title')}
-          </h1>
-          <p className="text-emerald-100 text-sm md:text-base">
-            {isFeaturedMode ? t('ads.featuredSubtitle') : t('ads.subtitle')}
-          </p>
-
-          {/* Search bar (only in non-featured mode) */}
-          {!isFeaturedMode && (
-            <div className="mt-6 max-w-2xl">
-              <div className="relative">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-gray-400" />
-                <Input
-                  placeholder={t('ads.searchPlaceholder')}
-                  value={searchQuery}
-                  onChange={(e) => setFilters({ type: '', category: '', region: '', minPrice: '', maxPrice: '' })}
-                  className="pl-10 h-12 bg-white rounded-lg shadow-lg border-0 text-base"
-                />
-              </div>
-            </div>
-          )}
-        </div>
-      </div>
-
       <div className="max-w-7xl mx-auto px-4 py-6">
-        {/* Top bar: mobile filter button + sort + result count */}
-        <div className="flex items-center justify-between mb-6 gap-4">
-          <div className="flex items-center gap-3">
-            {/* Mobile filter button */}
-            <Sheet open={mobileFiltersOpen} onOpenChange={setMobileFiltersOpen}>
-              <SheetTrigger asChild>
-                <Button variant="outline" className="lg:hidden flex items-center gap-2">
-                  <SlidersHorizontal className="h-4 w-4" />
-                  {t('ads.filters')}
-                  {activeFilterCount > 0 && (
-                    <span className="ml-1 bg-emerald-600 text-white text-xs rounded-full h-5 w-5 flex items-center justify-center">
-                      {activeFilterCount}
-                    </span>
-                  )}
-                </Button>
-              </SheetTrigger>
-              <SheetContent side="left" className="w-80 overflow-y-auto">
-                <SheetHeader>
-                  <SheetTitle>{t('ads.filters')}</SheetTitle>
-                </SheetHeader>
-                <div className="mt-6">
-                  <FilterSidebar />
-                </div>
-              </SheetContent>
-            </Sheet>
+        {/* Breadcrumb */}
+        <nav className="flex items-center gap-2 text-sm text-gray-500 mb-6 flex-wrap">
+          <button onClick={() => navigateTo('home')} className="hover:text-emerald-700 flex items-center gap-1">
+            <Home className="h-4 w-4" />
+            {t('nav.home')}
+          </button>
+          <ChevronRight className="h-3 w-3" />
+          <button onClick={() => navigateTo('ads')} className="hover:text-emerald-700">
+            {t('nav.ads')}
+          </button>
+          {ad.category && (
+            <>
+              <ChevronRight className="h-3 w-3" />
+              <span className="text-gray-700">{ad.category.name}</span>
+            </>
+          )}
+          <ChevronRight className="h-3 w-3" />
+          <span className="text-gray-900 font-medium truncate max-w-xs">{ad.title}</span>
+        </nav>
 
-            <p className="text-sm text-gray-500">
-              <span className="font-semibold text-gray-900">{totalResults}</span>{' '}
-              {totalResults > 1 ? t('ads.results') : t('ads.result')}
-            </p>
-          </div>
+        {/* Back button mobile */}
+        <button
+          onClick={() => navigateTo('ads')}
+          className="flex items-center gap-2 text-sm text-gray-500 hover:text-emerald-700 mb-4 lg:hidden"
+        >
+          <ChevronLeft className="h-4 w-4" />
+          {t('detail.backToAds')}
+        </button>
 
-          {/* Sort */}
-          <Select value={sortBy} onValueChange={setSortBy}>
-            <SelectTrigger className="w-[180px] h-9 text-sm">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="recent">{t('ads.sortRecent')}</SelectItem>
-              <SelectItem value="price-asc">{t('ads.sortPriceAsc')}</SelectItem>
-              <SelectItem value="price-desc">{t('ads.sortPriceDesc')}</SelectItem>
-              <SelectItem value="popular">{t('ads.sortPopular')}</SelectItem>
-              <SelectItem value="nearby">{t('ads.sortNearby')}</SelectItem>
-            </SelectContent>
-          </Select>
-        </div>
-
-        {/* Active filters chips */}
-        {activeFilterCount > 0 && (
-          <div className="flex flex-wrap gap-2 mb-6">
-            {filters.type && (
-              <Badge variant="secondary" className="flex items-center gap-1 pr-1">
-                {filters.type === 'OFFER' ? t('ad.offer') : filters.type === 'DEMAND' ? t('ad.demand') : t('ad.service')}
-                <button onClick={() => handleFilterChange('type', '')} className="ml-1 hover:text-red-600">
-                  <X className="h-3 w-3" />
-                </button>
-              </Badge>
-            )}
-            {filters.category && (
-              <Badge variant="secondary" className="flex items-center gap-1 pr-1">
-                {categories.find(c => c.slug === filters.category)?.name || filters.category}
-                <button onClick={() => handleFilterChange('category', '')} className="ml-1 hover:text-red-600">
-                  <X className="h-3 w-3" />
-                </button>
-              </Badge>
-            )}
-            {filters.region && (
-              <Badge variant="secondary" className="flex items-center gap-1 pr-1">
-                <MapPin className="h-3 w-3 mr-1" />
-                {filters.region}
-                <button onClick={() => handleFilterChange('region', '')} className="ml-1 hover:text-red-600">
-                  <X className="h-3 w-3" />
-                </button>
-              </Badge>
-            )}
-          </div>
-        )}
-
-        {/* Main layout */}
-        <div className="flex gap-8">
-          {/* Desktop sidebar */}
-          <aside className="hidden lg:block w-64 shrink-0">
-            <div className="sticky top-4 bg-white border border-gray-200 rounded-xl p-5">
-              <h2 className="font-semibold text-gray-900 mb-4 flex items-center gap-2">
-                <SlidersHorizontal className="h-4 w-4 text-emerald-600" />
-                {t('ads.filters')}
-              </h2>
-              <FilterSidebar />
+        {/* Main Layout */}
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+          {/* Left: Main Content */}
+          <div className="lg:col-span-2 space-y-6">
+            {/* Favorite button - top right overlay on gallery */}
+            <div className="relative">
+              <ImageGallery images={images} title={ad.title} type={ad.type} />
+              <button
+                onClick={handleToggleFavorite}
+                className="absolute right-3 top-3 z-10 flex h-10 w-10 items-center justify-center rounded-full bg-white/90 shadow-md transition-all hover:bg-white hover:scale-110"
+                title={isFavorited ? 'Retirer des favoris' : 'Ajouter aux favoris'}
+              >
+                <Heart className={`h-5 w-5 transition-colors ${isFavorited ? 'fill-red-500 text-red-500' : 'text-gray-600'}`} />
+              </button>
             </div>
-          </aside>
 
-          {/* Ad grid */}
-          <main className="flex-1 min-w-0">
-            {loading ? (
-              <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4">
-                {Array.from({ length: 6 }).map((_, i) => (
-                  <SkeletonCard key={i} />
+            {/* Title + Badges */}
+            <div>
+              <div className="flex flex-wrap items-center gap-2 mb-2">
+                {getTypeBadge(ad.type, t)}
+                {ad.isUrgent && (
+                  <Badge className="bg-red-500 text-white hover:bg-red-600 border-0">
+                    <Zap className="h-3 w-3 mr-1" /> {t('ad.urgent')}
+                  </Badge>
+                )}
+                {ad.isFeatured && (
+                  <Badge className="bg-amber-500 text-white hover:bg-amber-600 border-0">
+                    <Award className="h-3 w-3 mr-1" /> {t('ad.featuredBadge')}
+                  </Badge>
+                )}
+              </div>
+              <h1 className="text-2xl md:text-3xl font-bold text-gray-900 mb-2">{ad.title}</h1>
+
+              {/* Price */}
+              <p className="text-2xl md:text-3xl font-bold text-emerald-700">
+                {formatPrice(ad.price, ad.priceUnit)}
+                {ad.negociable && (
+                  <span className="text-sm font-normal text-gray-500 ml-3">({t('common.negociable')})</span>
+                )}
+              </p>
+            </div>
+
+            {/* Details Grid */}
+            <Card className="border-gray-200">
+              <CardContent className="p-5">
+                <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+                  {ad.region && (
+                    <div className="flex items-start gap-2">
+                      <MapPin className="h-4 w-4 text-emerald-600 mt-0.5 shrink-0" />
+                      <div>
+                        <p className="text-xs text-gray-500">{t('detail.region')}</p>
+                        <p className="text-sm font-medium">{ad.region}</p>
+                      </div>
+                    </div>
+                  )}
+                  {ad.city && (
+                    <div className="flex items-start gap-2">
+                      <MapPin className="h-4 w-4 text-emerald-600 mt-0.5 shrink-0" />
+                      <div>
+                        <p className="text-xs text-gray-500">{t('detail.city')}</p>
+                        <p className="text-sm font-medium">{ad.city}</p>
+                      </div>
+                    </div>
+                  )}
+                  {ad.condition && ad.type !== 'SERVICE' && (
+                    <div className="flex items-start gap-2">
+                      <Tag className="h-4 w-4 text-emerald-600 mt-0.5 shrink-0" />
+                      <div>
+                        <p className="text-xs text-gray-500">{t('detail.condition')}</p>
+                        <p className="text-sm font-medium">{getConditionLabel(ad.condition)}</p>
+                      </div>
+                    </div>
+                  )}
+                  {ad.quantity && (
+                    <div className="flex items-start gap-2">
+                      <Package className="h-4 w-4 text-emerald-600 mt-0.5 shrink-0" />
+                      <div>
+                        <p className="text-xs text-gray-500">{t('detail.quantity')}</p>
+                        <p className="text-sm font-medium">{ad.quantity}</p>
+                      </div>
+                    </div>
+                  )}
+                  <div className="flex items-start gap-2">
+                    <Truck className="h-4 w-4 text-emerald-600 mt-0.5 shrink-0" />
+                    <div>
+                      <p className="text-xs text-gray-500">{t('detail.delivery')}</p>
+                      <p className="text-sm font-medium">{ad.delivery ? t('detail.available') : t('detail.notAvailable')}</p>
+                    </div>
+                  </div>
+                  <div className="flex items-start gap-2">
+                    <Clock className="h-4 w-4 text-emerald-600 mt-0.5 shrink-0" />
+                    <div>
+                      <p className="text-xs text-gray-500">{t('detail.published')}</p>
+                      <p className="text-sm font-medium">{formatDate(ad.createdAt)}</p>
+                    </div>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* Description */}
+            <Card id="description-card" className="border-gray-200">
+              <CardHeader>
+                <div className="flex items-center justify-between flex-wrap gap-2">
+                  <CardTitle className="text-lg">{t('detail.description')}</CardTitle>
+                  <LanguageSelector
+                    variant="default"
+                    title={ad?.title}
+                    description={ad?.description}
+                    onTranslated={handleTranslated}
+                    triggerLabel={t('detail.translate')}
+                    size="default"
+                  />
+                </div>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <p className="text-gray-700 leading-relaxed whitespace-pre-line">{ad.description}</p>
+
+                {/* Translation Result - inside the description card */}
+                {translationResult && showTranslation && (
+                  <div className="rounded-lg border border-emerald-200 bg-gradient-to-br from-emerald-50 to-green-50 p-4 space-y-3">
+                    <div className="flex items-center gap-2">
+                      <Languages className="h-4 w-4 text-emerald-600" />
+                      <span className="text-sm font-semibold text-emerald-800">{t('detail.translationIn')} {translationResult.language}</span>
+                    </div>
+                    <div>
+                      <p className="text-xs text-gray-500 mb-1">{t('detail.translatedTitle')}</p>
+                      <p className="font-semibold text-gray-900">{translationResult.title}</p>
+                    </div>
+                    <div>
+                      <p className="text-xs text-gray-500 mb-1">{t('detail.translatedDesc')}</p>
+                      <p className="text-gray-700 leading-relaxed whitespace-pre-line">{translationResult.description}</p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setTranslationResult(null)}
+                      className="text-xs text-emerald-600 hover:text-emerald-800 underline"
+                    >
+                      {t('detail.hideTranslation')}
+                    </button>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+
+            {/* Tags */}
+            {tags.length > 0 && (
+              <div className="flex flex-wrap gap-2">
+                {tags.map((tag: string, idx: number) => (
+                  <Badge key={idx} variant="outline" className="text-gray-600 hover:bg-emerald-50 hover:text-emerald-700">
+                    #{tag}
+                  </Badge>
                 ))}
               </div>
-            ) : ads.length === 0 ? (
-              <motion.div
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                className="text-center py-16"
-              >
-                <div className="w-20 h-20 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
-                  <Search className="h-8 w-8 text-gray-400" />
-                </div>
-                <h3 className="text-lg font-semibold text-gray-900 mb-2">
-                  {t('ads.noResults')}
-                </h3>
-                <p className="text-gray-500 text-sm mb-6 max-w-md mx-auto">
-                  {t('ads.noResultsDesc')}
-                </p>
-                <Button
-                  variant="outline"
-                  className="text-emerald-700 border-emerald-300 hover:bg-emerald-50 mr-2"
-                  onClick={handleResetFilters}
-                >
-                  {t('ads.resetFilters')}
-                </Button>
-                <Button
-                  variant="outline"
-                  className="text-gray-600"
-                  onClick={() => navigateTo('home')}
-                >
-                  {t('ads.backHome')}
-                </Button>
-                {/* Category suggestions */}
-                {categories.length > 0 && (
-                  <div className="mt-8">
-                    <p className="text-sm text-gray-500 mb-3">{t('ads.browseCategory')}</p>
-                    <div className="flex flex-wrap justify-center gap-2">
-                      {categories.slice(0, 6).map((cat) => (
-                        <button
-                          key={cat.slug}
-                          onClick={() => handleFilterChange('category', cat.slug)}
-                          className="rounded-full border border-gray-200 px-4 py-2 text-sm text-gray-600 transition-colors hover:bg-emerald-50 hover:border-emerald-300 hover:text-emerald-700"
-                        >
-                          {cat.name}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-                )}
-              </motion.div>
-            ) : (
-              <>
-                <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4">
-                  <AnimatePresence>
-                    {ads.map((ad) => (
-                      <motion.div
-                        key={ad.id}
-                        initial={{ opacity: 0, y: 10 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        exit={{ opacity: 0, y: -10 }}
-                        transition={{ duration: 0.2 }}
-                      >
-                        <AdCard ad={ad} onClick={() => handleAdClick(ad)} />
-                      </motion.div>
-                    ))}
-                  </AnimatePresence>
-                </div>
-
-                {/* Pagination */}
-                {totalPages > 1 && (
-                  <div className="flex items-center justify-center gap-4 mt-8">
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      disabled={currentPageNum <= 1}
-                      onClick={() => setCurrentPageNum((p) => p - 1)}
-                    >
-                      <ChevronLeft className="h-4 w-4 mr-1" />
-                      {t('ads.previous')}
-                    </Button>
-
-                    <div className="flex items-center gap-1">
-                      {Array.from({ length: totalPages }, (_, i) => i + 1)
-                        .filter((p) => p === 1 || p === totalPages || Math.abs(p - currentPageNum) <= 1)
-                        .reduce<(number | string)[]>((acc, p, idx, arr) => {
-                          if (idx > 0 && p - (arr[idx - 1] as number) > 1) {
-                            acc.push('...')
-                          }
-                          acc.push(p)
-                          return acc
-                        }, [])
-                        .map((item, idx) =>
-                          typeof item === 'string' ? (
-                            <span key={`dots-${idx}`} className="px-2 text-gray-400">...</span>
-                          ) : (
-                            <Button
-                              key={item}
-                              variant={currentPageNum === item ? 'default' : 'outline'}
-                              size="sm"
-                              className={
-                                currentPageNum === item
-                                  ? 'bg-emerald-600 hover:bg-emerald-700 text-white'
-                                  : 'min-w-8 h-8'
-                              }
-                              onClick={() => setCurrentPageNum(item)}
-                            >
-                              {item}
-                            </Button>
-                          )
-                        )}
-                    </div>
-
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      disabled={currentPageNum >= totalPages}
-                      onClick={() => setCurrentPageNum((p) => p + 1)}
-                    >
-                      {t('ads.next')}
-                      <ChevronRight className="h-4 w-4 ml-1" />
-                    </Button>
-                  </div>
-                )}
-              </>
             )}
-          </main>
+
+            {/* Author Card */}
+            {ad.author && (
+              <Card className="border-gray-200">
+                <CardContent className="p-5">
+                  <div className="flex items-start justify-between gap-4">
+                    <div className="flex items-center gap-4">
+                      <Avatar className="h-14 w-14">
+                        <AvatarImage src={ad.author.avatar} alt={ad.author.name} />
+                        <AvatarFallback className="bg-emerald-100 text-emerald-700 text-lg font-semibold">
+                          {ad.author.name?.charAt(0)?.toUpperCase()}
+                        </AvatarFallback>
+                      </Avatar>
+                      <div>
+                        <div className="flex items-center gap-2">
+                          <h3 className="font-semibold text-gray-900">{ad.author.name}</h3>
+                          {ad.author.isVerified && (
+                            <Badge className="bg-emerald-100 text-emerald-700 border-0 text-xs">
+                              Vérifié
+                            </Badge>
+                          )}
+                        </div>
+                        <div className="flex items-center gap-3 text-sm text-gray-500 mt-1">
+                          {(ad.author.region || ad.author.city) && (
+                            <span className="flex items-center gap-1">
+                              <MapPin className="h-3 w-3" />
+                              {[ad.author.region, ad.author.city].filter(Boolean).join(', ')}
+                            </span>
+                          )}
+                          {ad.author.createdAt && (
+                            <span>Membre depuis {formatDate(ad.author.createdAt)}</span>
+                          )}
+                        </div>
+                        {ad.avgRating != null && ad.avgRating > 0 && (
+                          <div className="flex items-center gap-2 mt-2">
+                            <RatingStars rating={ad.avgRating} />
+                            <span className="text-sm text-gray-500">({reviews.length} {t('detail.reviews')})</span>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+
+                    <div className="flex flex-col gap-2 shrink-0">
+                      <Button
+                        size="sm"
+                        className="bg-emerald-600 hover:bg-emerald-700"
+                        onClick={handleContact}
+                        disabled={contacting}
+                      >
+                        <MessageCircle className="h-4 w-4 mr-2" />
+                        {contacting ? 'Envoi...' : 'Contacter'}
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => navigateTo('user-profile', { userId: ad.authorId, userName: ad.author?.name })}
+                        className="text-gray-600"
+                      >
+                        Voir le profil
+                      </Button>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            )}
+
+            {/* Reviews Section */}
+            <div className="space-y-4">
+              <div className="flex items-center justify-between">
+                <h2 className="text-lg font-semibold text-gray-900 flex items-center gap-2">
+                  <Star className="h-5 w-5 text-amber-400" />
+                  {t('detail.reviews')} ({reviews.length})
+                </h2>
+                {ad.avgRating != null && ad.avgRating > 0 && (
+                  <div className="flex items-center gap-2">
+                    <span className="text-2xl font-bold text-gray-900">{ad.avgRating}</span>
+                    <RatingStars rating={ad.avgRating} size="md" />
+                  </div>
+                )}
+              </div>
+
+              {reviews.length > 0 && (
+                <div className="space-y-3">
+                  {reviews.map((review: any) => (
+                    <Card key={review.id} className="border-gray-200">
+                      <CardContent className="p-4">
+                        <div className="flex items-start justify-between mb-2">
+                          <div className="flex items-center gap-3">
+                            <Avatar className="h-8 w-8">
+                              <AvatarImage src={review.reviewer?.avatar} />
+                              <AvatarFallback className="bg-gray-100 text-gray-600 text-xs">
+                                {review.reviewer?.name?.charAt(0)?.toUpperCase()}
+                              </AvatarFallback>
+                            </Avatar>
+                            <div>
+                              <p className="font-medium text-sm text-gray-900">{review.reviewer?.name}</p>
+                              <p className="text-xs text-gray-500">{formatRelativeTime(review.createdAt)}</p>
+                            </div>
+                          </div>
+                          <RatingStars rating={review.rating} />
+                        </div>
+                        {review.comment && (
+                          <p className="text-sm text-gray-700 mt-2">{review.comment}</p>
+                        )}
+                      </CardContent>
+                    </Card>
+                  ))}
+                </div>
+              )}
+
+              <ReviewForm
+                adId={ad.id}
+                authorId={ad.authorId}
+                currentUser={currentUser}
+                onSubmitted={async () => {
+                  // Refetch reviews
+                  const res = await fetch(`/api/agryva/reviews/?adId=${ad.id}`)
+                  const json = await res.json()
+                  if (json.success) {
+                    setAd(prev => prev ? {
+                      ...prev,
+                      reviews: json.data,
+                      avgRating: json.avgRating,
+                    } : prev)
+                  }
+                }}
+              />
+            </div>
+          </div>
+
+          {/* Right: Sidebar */}
+          <div className="space-y-6">
+            {/* Action Buttons */}
+            <Card className="border-emerald-200 bg-emerald-50/50 sticky top-4">
+              <CardContent className="p-5 space-y-3">
+                <Button
+                  className="w-full bg-emerald-600 hover:bg-emerald-700 text-base py-6"
+                  onClick={handleContact}
+                  disabled={contacting}
+                >
+                  <MessageCircle className="h-5 w-5 mr-2" />
+                  {t('detail.contact')}
+                </Button>
+
+                {ad.type === 'OFFER' && (
+                  <Button
+                    variant="outline"
+                    className="w-full border-emerald-600 text-emerald-700 hover:bg-emerald-50 py-6 text-base"
+                    onClick={handleBuyNow}
+                  >
+                    <ShoppingCart className="h-5 w-5 mr-2" />
+                    {ad.type === 'SERVICE' ? 'Passer la commande' : t('detail.buyNow')}
+                  </Button>
+                )}
+
+                <div className="flex gap-2">
+                  <Button
+                    variant={isFavorited ? 'secondary' : 'ghost'}
+                    size="sm"
+                    className={`flex-1 ${isFavorited ? 'bg-red-50 text-red-600 hover:bg-red-100' : 'text-gray-600'}`}
+                    onClick={handleToggleFavorite}
+                  >
+                    <Heart className={`h-4 w-4 mr-2 ${isFavorited ? 'fill-red-500' : ''}`} />
+                    {isFavorited ? t('detail.added') : 'Favoris'}
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="flex-1 text-gray-600"
+                    type="button"
+                    onClick={() => {
+                      const el = document.getElementById('description-card')
+                      if (el) el.scrollIntoView({ behavior: 'smooth' })
+                    }}
+                  >
+                    <Languages className="h-4 w-4 mr-2" />
+                    {t('detail.translate')}
+                  </Button>
+                  <Popover>
+                    <PopoverTrigger asChild>
+                      <Button variant="ghost" size="sm" className="flex-1 text-gray-600">
+                        <Share2 className="h-4 w-4 mr-2" />
+                        {t('detail.share')}
+                      </Button>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-56 p-2" align="end">
+                      <div className="space-y-1">
+                        <a
+                          href={`https://wa.me/?text=${encodeURIComponent(shareText + ' ' + adUrl)}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-sm text-gray-700 hover:bg-green-50 transition-colors"
+                        >
+                          <div className="flex h-7 w-7 items-center justify-center rounded-full bg-green-500 text-white text-xs font-bold">W</div>
+                          WhatsApp
+                        </a>
+                        <a
+                          href={`https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(adUrl)}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-sm text-gray-700 hover:bg-blue-50 transition-colors"
+                        >
+                          <div className="flex h-7 w-7 items-center justify-center rounded-full bg-blue-600 text-white text-xs font-bold">f</div>
+                          Facebook
+                        </a>
+                        <a
+                          href={`https://twitter.com/intent/tweet?text=${encodeURIComponent(shareText)}&url=${encodeURIComponent(adUrl)}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-sm text-gray-700 hover:bg-gray-100 transition-colors"
+                        >
+                          <div className="flex h-7 w-7 items-center justify-center rounded-full bg-gray-900 text-white text-xs font-bold">X</div>
+                          Twitter / X
+                        </a>
+                        <button
+                          onClick={handleCopyLink}
+                          className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-sm text-gray-700 hover:bg-gray-100 transition-colors"
+                        >
+                          <div className="flex h-7 w-7 items-center justify-center rounded-full bg-gray-200 text-gray-600">
+                            {linkCopied ? <Check className="h-3.5 w-3.5" /> : <LinkIcon className="h-3.5 w-3.5" />}
+                          </div>
+                          {linkCopied ? t('detail.copied') : t('detail.copyLink')}
+                        </button>
+                      </div>
+                    </PopoverContent>
+                  </Popover>
+                </div>
+
+                {/* Views & time */}
+                <Separator />
+                <div className="flex items-center justify-between text-xs text-gray-500">
+                  <span className="flex items-center gap-1">
+                    <Eye className="h-3 w-3" />
+                    {ad.viewsCount} vues
+                  </span>
+                  <span className="flex items-center gap-1">
+                    <Clock className="h-3 w-3" />
+                    {formatRelativeTime(ad.createdAt)}
+                  </span>
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* Safety Tips */}
+            <Card className="border-amber-200 bg-amber-50/30">
+              <CardContent className="p-5">
+                <h3 className="font-semibold text-amber-800 flex items-center gap-2 mb-3">
+                  <Shield className="h-4 w-4" />
+                  {t('detail.safety')}
+                </h3>
+                <ul className="space-y-2 text-sm text-amber-900">
+                  <li className="flex items-start gap-2">
+                    <AlertTriangle className="h-3.5 w-3.5 mt-0.5 shrink-0" />
+                    {t('detail.safety1')}
+                  </li>
+                  <li className="flex items-start gap-2">
+                    <AlertTriangle className="h-3.5 w-3.5 mt-0.5 shrink-0" />
+                    {t('detail.safety2')}
+                  </li>
+                  <li className="flex items-start gap-2">
+                    <AlertTriangle className="h-3.5 w-3.5 mt-0.5 shrink-0" />
+                    {t('detail.safety3')}
+                  </li>
+                  <li className="flex items-start gap-2">
+                    <AlertTriangle className="h-3.5 w-3.5 mt-0.5 shrink-0" />
+                    {t('detail.safety4')}
+                  </li>
+                </ul>
+              </CardContent>
+            </Card>
+
+            {/* Similar Ads */}
+            {similarAds.length > 0 && (
+              <Card className="border-gray-200">
+                <CardHeader>
+                  <CardTitle className="text-base">{t('detail.similar')}</CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-3">
+                  {similarAds.map((similar) => (
+                    <button
+                      key={similar.id}
+                      onClick={() => navigateTo('ad-detail', { id: similar.id, title: similar.title, categorySlug: similar.categorySlug })}
+                      className="w-full flex gap-3 p-2 rounded-lg hover:bg-gray-50 transition-colors text-left"
+                    >
+                      <div className="w-16 h-16 rounded-lg overflow-hidden shrink-0 bg-gray-100">
+                        {(() => {
+                          const imgs = typeof similar.images === 'string' ? JSON.parse(similar.images || '[]') : (similar.images || [])
+                          return imgs.length > 0 ? (
+                            <img src={imgs[0]} alt={similar.title} className="w-full h-full object-cover" />
+                          ) : (
+                            <div className={`w-full h-full bg-gradient-to-br ${getTypeGradient(similar.type)}`} />
+                          )
+                        })()}
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <h4 className="text-sm font-medium text-gray-900 line-clamp-1">{similar.title}</h4>
+                        <p className="text-sm font-bold text-emerald-700">{formatPrice(similar.price, similar.priceUnit)}</p>
+                        <p className="text-xs text-gray-500 flex items-center gap-1 mt-1">
+                          <MapPin className="h-3 w-3" />
+                          {[similar.region, similar.city].filter(Boolean).join(', ')}
+                        </p>
+                      </div>
+                    </button>
+                  ))}
+                </CardContent>
+              </Card>
+            )}
+
+            {/* Ad Space Banner */}
+            {adspaceBanner && (
+              <a href={adspaceBanner.linkUrl || '#'} target="_blank" rel="noopener noreferrer" className="block">
+                <Card className="overflow-hidden border-0 shadow-sm">
+                  <img
+                    src={adspaceBanner.imageUrl}
+                    alt={adspaceBanner.title}
+                    className="w-full h-auto rounded-xl"
+                  />
+                </Card>
+              </a>
+            )}
+          </div>
         </div>
       </div>
     </div>
+  )
+}
+
+function Package({ className }: { className?: string }) {
+  return (
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}>
+      <path d="M16.5 9.4 7.55 4.24" /><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z" />
+      <polyline points="3.29 7 12 12 20.71 7" /><line x1="12" x2="12" y1="22" y2="12" />
+    </svg>
   )
 }

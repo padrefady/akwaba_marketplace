@@ -3,7 +3,7 @@
 import { Suspense, lazy, useState, useEffect, useCallback, useMemo } from 'react'
 import { AnimatePresence, motion } from 'framer-motion'
 import { useAppStore } from '@/components/agryva/store'
-import { getLangFromUrl } from '@/lib/i18n'
+import { urlToPage, replaceUrl, pageToUrl } from '@/lib/router'
 import { Header } from './Header'
 import { Footer } from './Footer'
 import { BottomNav } from './BottomNav'
@@ -32,6 +32,7 @@ const PrivacyPage = lazy(() => import('@/components/agryva/pages/PrivacyPage'))
 const FaqPage = lazy(() => import('@/components/agryva/pages/FaqPage'))
 const SupportPage = lazy(() => import('@/components/agryva/pages/SupportPage'))
 const MarketPage = lazy(() => import('@/components/agryva/pages/MarketPage'))
+const UserProfilePage = lazy(() => import('@/components/agryva/pages/UserProfilePage'))
 
 const pageVariants = {
   initial: { opacity: 0, y: 8 },
@@ -45,6 +46,7 @@ const pageTransition = {
   duration: 0.2,
 }
 
+// Pages where the bottom nav should be hidden
 const HIDE_BOTTOM_NAV_PAGES = new Set([
   'login',
   'register',
@@ -105,6 +107,8 @@ function PageRouter() {
         return <SupportPage />
       case 'market':
         return <MarketPage />
+      case 'user-profile':
+        return <UserProfilePage />
       default:
         return <HomePage />
     }
@@ -130,36 +134,48 @@ function PageRouter() {
 
 export function AppLayout() {
   const [showSplash, setShowSplash] = useState(true)
-  const { setCurrentLanguage, currentPage, homeDataReady } = useAppStore()
+  const [isInitialized, setIsInitialized] = useState(false)
+  const { initFromUrl, _navigateSilent, currentPage, homeDataReady, setCurrentLanguage } = useAppStore()
 
+  // Derive splash visibility from store + fallback timer
   const splashVisible = useMemo(() => showSplash && !homeDataReady, [showSplash, homeDataReady])
 
   const handleSplashComplete = useCallback(() => {
     setShowSplash(false)
   }, [])
 
-  // Hide splash when home data is ready
+  // Hide splash when home data is ready (categories + ads loaded)
   useEffect(() => {
     if (homeDataReady) {
+      // Use microtask to avoid synchronous setState in effect
       queueMicrotask(() => setShowSplash(false))
     }
   }, [homeDataReady])
 
-  // Detect language from URL on mount
+  // Initialize page state from browser URL on mount
   useEffect(() => {
-    if (typeof window !== 'undefined') {
-      const path = window.location.pathname.replace(/^\//, '')
-      const firstSegment = path.split('/')[0]
-      if (firstSegment) {
-        const langCode = getLangFromUrl(firstSegment)
-        if (langCode) {
-          setCurrentLanguage(langCode)
-        }
+    initFromUrl()
+    // Use microtask to avoid synchronous setState warning
+    queueMicrotask(() => setIsInitialized(true))
+  }, [initFromUrl])
+
+  // Listen for browser back/forward navigation (popstate)
+  useEffect(() => {
+    if (!isInitialized) return
+
+    function handlePopState() {
+      const result = urlToPage(window.location.pathname)
+      if (result) {
+        _navigateSilent(result.page, result.params)
+        setCurrentLanguage(result.lang)
       }
     }
-  }, [setCurrentLanguage])
 
-  // Safety fallback: hide splash after 8s max
+    window.addEventListener('popstate', handlePopState)
+    return () => window.removeEventListener('popstate', handlePopState)
+  }, [isInitialized, _navigateSilent, setCurrentLanguage])
+
+  // Safety fallback: hide splash after 8s max even if data not loaded
   useEffect(() => {
     const fallback = setTimeout(() => {
       setShowSplash(false)

@@ -14,22 +14,25 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "agryva - La plateforme agricole n°1 au Cameroun",
+  title: "Agryva - La plateforme agricole n°1 au Cameroun",
   description: "Achetez, vendez et échangez produits et services agricoles au Cameroun. Marketplace agricole avec IA, traduction automatique et prédictions de marché.",
-  keywords: ["agryva", "agriculture", "Cameroun", "marketplace", "produits agricoles", "marché", "cacao", "café", "manioc", "maïs", "plantain"],
-  authors: [{ name: "agryva Team" }],
+  keywords: ["Agryva", "agriculture", "Cameroun", "marketplace", "produits agricoles", "marché", "cacao", "café", "manioc", "maïs", "plantain"],
+  authors: [{ name: "Agryva Team" }],
   icons: {
-    icon: "/logo.svg",
+    icon: [
+      { url: "/logo.svg", type: "image/svg+xml" },
+    ],
+    apple: "/apple-icon.png",
   },
   openGraph: {
-    title: "agryva - La plateforme agricole n°1 au Cameroun",
+    title: "Agryva - La plateforme agricole n°1 au Cameroun",
     description: "Connectez-vous avec des milliers d'agriculteurs camerounais. Achetez, vendez produits et services agricoles.",
-    siteName: "agryva",
+    siteName: "Agryva",
     type: "website",
   },
   twitter: {
     card: "summary_large_image",
-    title: "agryva - Marketplace Agricole",
+    title: "Agryva - Marketplace Agricole",
     description: "La plateforme agricole n°1 au Cameroun",
   },
 };

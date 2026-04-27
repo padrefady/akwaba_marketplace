@@ -1,6 +1,7 @@
 'use client'
 
 import { create } from 'zustand'
+import { pageToUrl, urlToPage, pushUrl, replaceUrl } from '@/lib/router'
 
 // ==================== TYPES ====================
 
@@ -26,6 +27,7 @@ export type Page =
   | 'faq'
   | 'support'
   | 'market'
+  | 'user-profile'
 
 export interface User {
   id: string
@@ -216,14 +218,10 @@ interface AppState {
   currentLanguage: string
   setCurrentLanguage: (lang: string) => void
 
-  // Splash loader control
-  homeDataReady: boolean
-  setHomeDataReady: (ready: boolean) => void
-
-  // Dynamic translations cache
+  // Dynamic translations cache: Record<`${lang}:${key}`, translatedText>
   dynamicTranslations: Record<string, string>
   setDynamicTranslations: (translations: Record<string, string>) => void
-  translationVersion: number
+  translationVersion: number // Increment to trigger re-renders
   incrementTranslationVersion: () => void
 }
 
@@ -251,6 +249,15 @@ export const useAppStore = create<AppState>((set, get) => ({
   pageParams: {},
   navigateTo: (page, params = {}) => {
     window.scrollTo(0, 0)
+    const url = pageToUrl(page, params, get().currentLanguage)
+    pushUrl(url)
+    // Update document title based on page
+    updateDocumentTitle(page, params)
+    set({ currentPage: page, pageParams: params, mobileMenuOpen: false })
+  },
+
+  // Navigate without pushing to history (for popstate/back)
+  _navigateSilent: (page, params) => {
     set({ currentPage: page, pageParams: params, mobileMenuOpen: false })
   },
 
@@ -322,8 +329,27 @@ export const useAppStore = create<AppState>((set, get) => ({
   setCurrentLanguage: (lang) => {
     if (typeof window !== 'undefined') {
       localStorage.setItem('agryva_language', lang)
+      // Rebuild URL with new language prefix
+      const { currentPage, pageParams } = get()
+      const newUrl = pageToUrl(currentPage, pageParams, lang)
+      replaceUrl(newUrl)
     }
     set({ currentLanguage: lang })
+  },
+
+  // Initialize page from browser URL (called on app mount)
+  initFromUrl: () => {
+    if (typeof window === 'undefined') return
+    const result = urlToPage(window.location.pathname)
+    if (result) {
+      set({
+        currentPage: result.page,
+        pageParams: result.params,
+        currentLanguage: result.lang,
+      })
+      // Also save language to localStorage
+      localStorage.setItem('agryva_language', result.lang)
+    }
   },
 
   // Splash loader control
@@ -336,3 +362,34 @@ export const useAppStore = create<AppState>((set, get) => ({
   translationVersion: 0,
   incrementTranslationVersion: () => set((state) => ({ translationVersion: state.translationVersion + 1 })),
 }))
+
+// Helper: update document title based on page
+function updateDocumentTitle(page: Page, params: Record<string, any>) {
+  if (typeof document === 'undefined') return
+  const siteName = 'Agryva'
+  const titles: Partial<Record<Page, string>> = {
+    home: `${siteName} — Marketplace Agricole`,
+    ads: 'Annonces Agricoles — Agryva',
+    'ad-detail': params.title ? `${params.title} — Agryva` : 'Annonce — Agryva',
+    'create-ad': 'Publier une annonce — Agryva',
+    'edit-ad': 'Modifier l\'annonce — Agryva',
+    profile: 'Mon Profil — Agryva',
+    'my-ads': 'Mes Annonces — Agryva',
+    messages: 'Messages — Agryva',
+    notifications: 'Notifications — Agryva',
+    pricing: 'Offres et Tarifs — Agryva',
+    dashboard: 'Tableau de bord — Agryva',
+    favorites: 'Favoris — Agryva',
+    'ai-assistant': 'Assistant IA — Agryva',
+    market: 'Marché — Agryva',
+    'user-profile': params.userName ? `Profil de ${params.userName} — Agryva` : 'Profil — Agryva',
+    login: 'Connexion — Agryva',
+    register: 'Inscription — Agryva',
+    faq: 'FAQ — Agryva',
+    support: 'Aide & Support — Agryva',
+    terms: 'Conditions d\'utilisation — Agryva',
+    privacy: 'Confidentialité — Agryva',
+    payment: 'Paiement — Agryva',
+  }
+  document.title = titles[page] || `${siteName} — Marketplace Agricole`
+}
