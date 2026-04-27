@@ -17,7 +17,7 @@ const PAGE_SLUGS: Record<Page, string> = {
   'ad-detail': '',       // Handled specially — uses /annonces/{category}/{slug}
   'create-ad': 'publier',
   'edit-ad': 'modifier',
-  profile: 'profil',
+  profile: 'mon-compte',
   'my-ads': 'mes-annonces',
   messages: 'messages',
   notifications: 'notifications',
@@ -31,7 +31,7 @@ const PAGE_SLUGS: Record<Page, string> = {
   faq: 'faq',
   support: 'aide',
   market: 'marche',
-  'user-profile': 'profil',
+  'user-profile': 'profil',  // /fr/profil/{userId}/{name} — public profile
 }
 
 // Reverse mapping: slug → Page
@@ -81,7 +81,7 @@ export function pageToUrl(page: Page, params: UrlParams = {}, lang?: string): st
       // /{lang}/profil/{userId}/{userName}
       const userId = params.userId || ''
       const nameSlug = slugify(params.userName || userId)
-      segments.push(slug, userId, nameSlug)
+      segments.push('profil', userId, nameSlug)
       break
     }
     case 'messages': {
@@ -167,10 +167,11 @@ export function urlToPage(pathname: string): { page: Page; params: UrlParams; la
         params.adId = pathRest[0]
       }
       break
-    case 'user-profile':
+    case 'user-profile': {
       // /profil/{userId}/{name-slug}
       if (pathRest[0]) params.userId = pathRest[0]
       break
+    }
     case 'messages':
       // /messages/{conversationId}
       if (pathRest[0]) params.conversationId = pathRest[0]

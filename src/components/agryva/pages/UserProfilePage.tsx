@@ -326,7 +326,7 @@ export default function UserProfilePage() {
                     >
                       <Card
                         className="overflow-hidden cursor-pointer hover:shadow-md transition-all duration-200 border-gray-200 group"
-                        onClick={() => navigateTo('ad-detail', { id: ad.id })}
+                        onClick={() => navigateTo('ad-detail', { id: ad.id, title: ad.title, categorySlug: ad.categorySlug })}
                       >
                         {/* Image */}
                         <div className="aspect-[16/10] bg-gray-100 relative overflow-hidden">
@@ -472,7 +472,7 @@ export default function UserProfilePage() {
                       )}
                       {review.ad && (
                         <button
-                          onClick={() => navigateTo('ad-detail', { id: review.ad.id })}
+                          onClick={() => navigateTo('ad-detail', { id: review.ad.id, title: review.ad.title, categorySlug: review.ad.categorySlug })}
                           className="text-xs text-emerald-600 hover:underline line-clamp-1"
                         >
                           Sur : {review.ad.title}
