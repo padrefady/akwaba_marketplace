@@ -15,11 +15,10 @@ export function HeaderTranslate({ compact = false }: HeaderTranslateProps) {
 
   const currentLangLabel = lang === 'fr' ? 'FR' : lang === 'en' ? 'EN' : lang.toUpperCase()
 
-  // Compact mode: circle button with fixed overlay panel (for mobile header)
-  // Uses fixed positioning to avoid clipping by header's backdrop-blur stacking context
+  // Compact mode: just a circle button (for mobile header)
   if (compact) {
     return (
-      <>
+      <div className="relative">
         <button
           type="button"
           onClick={() => setExpanded(!expanded)}
@@ -30,30 +29,28 @@ export function HeaderTranslate({ compact = false }: HeaderTranslateProps) {
         </button>
 
         {expanded && (
-          <div className="fixed inset-0 z-[100] flex flex-col items-center justify-center p-4">
-            {/* Backdrop */}
+          <>
             <div
-              className="absolute inset-0 bg-black/30"
+              className="fixed inset-0 z-[60] bg-black/20"
               onClick={() => setExpanded(false)}
             />
-            {/* Panel - fixed positioned to escape header stacking context */}
-            <div className="relative z-10 w-full max-w-sm max-h-[80vh] rounded-2xl border border-emerald-200 bg-white shadow-2xl overflow-hidden flex flex-col">
-              <div className="flex items-center justify-between border-b border-emerald-100 bg-emerald-50 px-4 py-3 shrink-0">
-                <div className="flex items-center gap-2 text-sm font-semibold text-emerald-700">
-                  <Languages className="h-5 w-5" />
+            <div className="absolute right-0 top-12 z-[70] w-72 rounded-xl border border-emerald-200 bg-white shadow-xl overflow-hidden">
+              <div className="flex items-center justify-between border-b border-emerald-100 bg-emerald-50 px-3 py-2">
+                <div className="flex items-center gap-1.5 text-sm font-semibold text-emerald-700">
+                  <Languages className="h-4 w-4" />
                   Langues
                 </div>
                 <button
                   type="button"
                   onClick={() => setExpanded(false)}
-                  className="flex h-8 w-8 items-center justify-center rounded-full text-gray-400 hover:bg-gray-100 hover:text-gray-600 transition-colors"
+                  className="flex h-7 w-7 items-center justify-center rounded-full text-gray-400 hover:bg-gray-100 hover:text-gray-600 transition-colors"
                 >
                   <X className="h-4 w-4" />
                 </button>
               </div>
-              <div className="overflow-y-auto flex-1 overscroll-contain">
-                <div className="px-4 pt-3 pb-2">
-                  <p className="flex items-center gap-1 text-[10px] font-bold text-emerald-600 uppercase tracking-wider mb-1.5">
+              <div className="overflow-y-auto max-h-[280px]">
+                <div className="px-3 pt-2 pb-1">
+                  <p className="flex items-center gap-1 text-[10px] font-bold text-emerald-600 uppercase tracking-wider mb-1">
                     <Globe className="h-3 w-3" />
                     Langues locales du Cameroun
                   </p>
@@ -62,38 +59,38 @@ export function HeaderTranslate({ compact = false }: HeaderTranslateProps) {
                       key={l.code}
                       type="button"
                       onClick={() => setLang(l.code)}
-                      className={`flex w-full items-center gap-2.5 rounded-lg px-3 py-2.5 text-left text-sm transition-colors hover:bg-emerald-50 ${lang === l.code ? 'bg-emerald-100 text-emerald-800 font-semibold' : 'text-gray-700'}`}
+                      className={`flex w-full items-center gap-2 rounded-lg px-2 py-2 text-left text-sm transition-colors hover:bg-emerald-50 ${lang === l.code ? 'bg-emerald-100 text-emerald-800 font-semibold' : 'text-gray-700'}`}
                     >
                       <span className="text-lg shrink-0">{l.flag}</span>
                       <div className="flex-1 min-w-0">
                         <span className="block text-xs font-medium truncate">{l.label}</span>
                         <span className="block text-[10px] text-gray-400">{l.region}</span>
                       </div>
-                      {lang === l.code && <span className="text-emerald-600 text-xs font-bold">✓</span>}
+                      {lang === l.code && <span className="text-emerald-600 text-xs">✓</span>}
                     </button>
                   ))}
                 </div>
-                <div className="mx-4 h-px bg-gray-100" />
-                <div className="px-4 pt-2 pb-4">
-                  <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1.5">Internationales</p>
+                <div className="mx-3 h-px bg-gray-100" />
+                <div className="px-3 pt-1 pb-2">
+                  <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1">Internationales</p>
                   {internationalLangs.map((l) => (
                     <button
                       key={l.code}
                       type="button"
                       onClick={() => setLang(l.code)}
-                      className={`flex w-full items-center gap-2.5 rounded-lg px-3 py-2.5 text-left text-sm transition-colors hover:bg-emerald-50 ${lang === l.code ? 'bg-emerald-100 text-emerald-800 font-semibold' : 'text-gray-700'}`}
+                      className={`flex w-full items-center gap-2 rounded-lg px-2 py-2 text-left text-sm transition-colors hover:bg-emerald-50 ${lang === l.code ? 'bg-emerald-100 text-emerald-800 font-semibold' : 'text-gray-700'}`}
                     >
                       <span className="text-lg shrink-0">{l.flag}</span>
                       <span className="flex-1 text-xs font-medium">{l.label}</span>
-                      {lang === l.code && <span className="text-emerald-600 text-xs font-bold">✓</span>}
+                      {lang === l.code && <span className="text-emerald-600 text-xs">✓</span>}
                     </button>
                   ))}
                 </div>
               </div>
             </div>
-          </div>
+          </>
         )}
-      </>
+      </div>
     )
   }
 
