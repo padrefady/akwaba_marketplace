@@ -1,7 +1,7 @@
 'use client'
 
 import { create } from 'zustand'
-import { pageToUrl, urlToPage, pushUrl, replaceUrl } from '@/lib/router'
+import { getUrlCode } from '@/lib/i18n'
 
 // ==================== TYPES ====================
 
@@ -27,7 +27,6 @@ export type Page =
   | 'faq'
   | 'support'
   | 'market'
-  | 'user-profile'
 
 export interface User {
   id: string
@@ -233,6 +232,63 @@ const defaultFilters = {
   maxPrice: '',
 }
 
+// ==================== URL HELPERS ====================
+
+function toSlug(text: string): string {
+  return text
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '') // remove accents
+    .toLowerCase()
+    .replace(/[^a-z0-9\s-]/g, '') // remove non-alphanumeric except spaces/hyphens
+    .trim()
+    .replace(/[\s-]+/g, '-') // replace spaces/hyphens with single hyphen
+    .slice(0, 60)
+    .replace(/-+$/, '') // remove trailing hyphens
+}
+
+const PAGE_URL_MAP: Record<string, string> = {
+  'home': '',
+  'ads': 'annonces',
+  'login': 'connexion',
+  'register': 'inscription',
+  'create-ad': 'publier',
+  'profile': 'profil',
+  'my-ads': 'mes-annonces',
+  'messages': 'messages',
+  'notifications': 'notifications',
+  'pricing': 'offres',
+  'payment': 'paiement',
+  'dashboard': 'tableau-de-bord',
+  'favorites': 'favoris',
+  'ai-assistant': 'assistant-ia',
+  'terms': 'conditions',
+  'privacy': 'confidentialite',
+  'faq': 'faq',
+  'support': 'aide',
+  'market': 'marche',
+}
+
+function buildPageUrl(page: string, params: Record<string, any>, lang: string): string {
+  const prefix = getUrlCode(lang)
+
+  if (page === 'ad-detail') {
+    const categorySlug = params.categorySlug || ''
+    const titleSlug = toSlug(params.title || 'annonce')
+    const shortId = (params.id || '').slice(0, 7)
+    const slug = `${titleSlug}-${shortId}`
+    const segments = ['annonces', categorySlug, slug].filter(Boolean)
+    return `/${prefix}/${segments.join('/')}`
+  }
+
+  if (page === 'edit-ad') {
+    const id = params.id || ''
+    return `/${prefix}/modifier/${id}`
+  }
+
+  const path = PAGE_URL_MAP[page] || ''
+  return path ? `/${prefix}/${path}` : `/${prefix}`
+}
+
 function loadFromStorage<T>(key: string, fallback: T): T {
   if (typeof window !== 'undefined') {
     const stored = localStorage.getItem(key)
@@ -249,15 +305,9 @@ export const useAppStore = create<AppState>((set, get) => ({
   pageParams: {},
   navigateTo: (page, params = {}) => {
     window.scrollTo(0, 0)
-    const url = pageToUrl(page, params, get().currentLanguage)
-    pushUrl(url)
-    // Update document title based on page
-    updateDocumentTitle(page, params)
-    set({ currentPage: page, pageParams: params, mobileMenuOpen: false })
-  },
-
-  // Navigate without pushing to history (for popstate/back)
-  _navigateSilent: (page, params) => {
+    const lang = get().currentLanguage
+    const url = buildPageUrl(page, params, lang)
+    window.history.pushState({}, '', url)
     set({ currentPage: page, pageParams: params, mobileMenuOpen: false })
   },
 
@@ -329,27 +379,8 @@ export const useAppStore = create<AppState>((set, get) => ({
   setCurrentLanguage: (lang) => {
     if (typeof window !== 'undefined') {
       localStorage.setItem('agryva_language', lang)
-      // Rebuild URL with new language prefix
-      const { currentPage, pageParams } = get()
-      const newUrl = pageToUrl(currentPage, pageParams, lang)
-      replaceUrl(newUrl)
     }
     set({ currentLanguage: lang })
-  },
-
-  // Initialize page from browser URL (called on app mount)
-  initFromUrl: () => {
-    if (typeof window === 'undefined') return
-    const result = urlToPage(window.location.pathname)
-    if (result) {
-      set({
-        currentPage: result.page,
-        pageParams: result.params,
-        currentLanguage: result.lang,
-      })
-      // Also save language to localStorage
-      localStorage.setItem('agryva_language', result.lang)
-    }
   },
 
   // Splash loader control
@@ -362,34 +393,3 @@ export const useAppStore = create<AppState>((set, get) => ({
   translationVersion: 0,
   incrementTranslationVersion: () => set((state) => ({ translationVersion: state.translationVersion + 1 })),
 }))
-
-// Helper: update document title based on page
-function updateDocumentTitle(page: Page, params: Record<string, any>) {
-  if (typeof document === 'undefined') return
-  const siteName = 'Agryva'
-  const titles: Partial<Record<Page, string>> = {
-    home: `${siteName} — Marketplace Agricole`,
-    ads: 'Annonces Agricoles — Agryva',
-    'ad-detail': params.title ? `${params.title} — Agryva` : 'Annonce — Agryva',
-    'create-ad': 'Publier une annonce — Agryva',
-    'edit-ad': 'Modifier l\'annonce — Agryva',
-    profile: 'Mon Profil — Agryva',
-    'my-ads': 'Mes Annonces — Agryva',
-    messages: 'Messages — Agryva',
-    notifications: 'Notifications — Agryva',
-    pricing: 'Offres et Tarifs — Agryva',
-    dashboard: 'Tableau de bord — Agryva',
-    favorites: 'Favoris — Agryva',
-    'ai-assistant': 'Assistant IA — Agryva',
-    market: 'Marché — Agryva',
-    'user-profile': params.userName ? `Profil de ${params.userName} — Agryva` : 'Profil — Agryva',
-    login: 'Connexion — Agryva',
-    register: 'Inscription — Agryva',
-    faq: 'FAQ — Agryva',
-    support: 'Aide & Support — Agryva',
-    terms: 'Conditions d\'utilisation — Agryva',
-    privacy: 'Confidentialité — Agryva',
-    payment: 'Paiement — Agryva',
-  }
-  document.title = titles[page] || `${siteName} — Marketplace Agricole`
-}

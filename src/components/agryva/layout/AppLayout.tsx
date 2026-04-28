@@ -2,8 +2,8 @@
 
 import { Suspense, lazy, useState, useEffect, useCallback, useMemo } from 'react'
 import { AnimatePresence, motion } from 'framer-motion'
-import { useAppStore } from '@/components/agryva/store'
-import { urlToPage, replaceUrl, pageToUrl } from '@/lib/router'
+import { useAppStore, type Page } from '@/components/agryva/store'
+import { getLangFromUrl, LANGUAGES } from '@/lib/i18n'
 import { Header } from './Header'
 import { Footer } from './Footer'
 import { BottomNav } from './BottomNav'
@@ -32,7 +32,6 @@ const PrivacyPage = lazy(() => import('@/components/agryva/pages/PrivacyPage'))
 const FaqPage = lazy(() => import('@/components/agryva/pages/FaqPage'))
 const SupportPage = lazy(() => import('@/components/agryva/pages/SupportPage'))
 const MarketPage = lazy(() => import('@/components/agryva/pages/MarketPage'))
-const UserProfilePage = lazy(() => import('@/components/agryva/pages/UserProfilePage'))
 
 const pageVariants = {
   initial: { opacity: 0, y: 8 },
@@ -59,6 +58,29 @@ const HIDE_BOTTOM_NAV_PAGES = new Set([
   'faq',
   'support',
 ])
+
+// Reverse mapping: URL path segment → page name
+const URL_TO_PAGE: Record<string, Page> = {
+  'annonces': 'ads',
+  'connexion': 'login',
+  'inscription': 'register',
+  'publier': 'create-ad',
+  'profil': 'profile',
+  'mes-annonces': 'my-ads',
+  'messages': 'messages',
+  'notifications': 'notifications',
+  'offres': 'pricing',
+  'paiement': 'payment',
+  'tableau-de-bord': 'dashboard',
+  'favoris': 'favorites',
+  'assistant-ia': 'ai-assistant',
+  'conditions': 'terms',
+  'confidentialite': 'privacy',
+  'faq': 'faq',
+  'aide': 'support',
+  'marche': 'market',
+  'modifier': 'edit-ad',
+}
 
 function PageRouter() {
   const { currentPage } = useAppStore()
@@ -107,8 +129,6 @@ function PageRouter() {
         return <SupportPage />
       case 'market':
         return <MarketPage />
-      case 'user-profile':
-        return <UserProfilePage />
       default:
         return <HomePage />
     }
@@ -134,8 +154,7 @@ function PageRouter() {
 
 export function AppLayout() {
   const [showSplash, setShowSplash] = useState(true)
-  const [isInitialized, setIsInitialized] = useState(false)
-  const { initFromUrl, _navigateSilent, currentPage, homeDataReady, setCurrentLanguage } = useAppStore()
+  const { setCurrentLanguage, currentPage, homeDataReady } = useAppStore()
 
   // Derive splash visibility from store + fallback timer
   const splashVisible = useMemo(() => showSplash && !homeDataReady, [showSplash, homeDataReady])
@@ -152,28 +171,81 @@ export function AppLayout() {
     }
   }, [homeDataReady])
 
-  // Initialize page state from browser URL on mount
+  // Detect language from URL on mount
   useEffect(() => {
-    initFromUrl()
-    // Use microtask to avoid synchronous setState warning
-    queueMicrotask(() => setIsInitialized(true))
-  }, [initFromUrl])
+    if (typeof window !== 'undefined') {
+      const path = window.location.pathname.replace(/^\//, '') // Remove leading /
+      const firstSegment = path.split('/')[0]
+      if (firstSegment) {
+        const langCode = getLangFromUrl(firstSegment)
+        if (langCode) {
+          setCurrentLanguage(langCode)
+        }
+      }
+    }
+  }, [setCurrentLanguage])
 
-  // Listen for browser back/forward navigation (popstate)
+  // Parse URL on mount to restore page state from URL
   useEffect(() => {
-    if (!isInitialized) return
+    if (typeof window === 'undefined') return
 
-    function handlePopState() {
-      const result = urlToPage(window.location.pathname)
-      if (result) {
-        _navigateSilent(result.page, result.params)
-        setCurrentLanguage(result.lang)
+    const { navigateTo, setCurrentLanguage: setLang, currentLanguage: lang } = useAppStore.getState()
+    const rawPath = window.location.pathname.replace(/^\//, '')
+    const segments = rawPath.split('/').filter(Boolean)
+    if (segments.length === 0) return
+
+    // Determine if first segment is a language prefix
+    const firstIsLang = LANGUAGES.some(l => l.urlCode === segments[0])
+    const offset = firstIsLang ? 1 : 0
+
+    // Set language from URL if detected
+    if (firstIsLang) {
+      const langCode = getLangFromUrl(segments[0])
+      if (langCode && langCode !== lang) {
+        setLang(langCode)
       }
     }
 
-    window.addEventListener('popstate', handlePopState)
-    return () => window.removeEventListener('popstate', handlePopState)
-  }, [isInitialized, _navigateSilent, setCurrentLanguage])
+    const pathSegments = segments.slice(offset)
+
+    // Handle ad-detail: /annonces/{categorySlug}/{titleSlug-shortId}
+    if (pathSegments[0] === 'annonces' && pathSegments.length === 3) {
+      const categorySlug = pathSegments[1]
+      const slugSegment = pathSegments[2]
+      // Extract short ID: last 7 chars after the final hyphen
+      const lastHyphenIdx = slugSegment.lastIndexOf('-')
+      if (lastHyphenIdx > 0) {
+        const shortId = slugSegment.slice(lastHyphenIdx + 1)
+        // The full ID is at least 7 chars, shortId is the first 7
+        // We navigate to ad-detail with just the id; the page will load full data
+        // Use shortId as the id to load (the API should handle partial IDs or we load by full match)
+        // Actually, we need the full ID. Since we only have the short version from the URL,
+        // navigate with it and let AdDetailPage load the ad. The shortId is enough to find the ad.
+        navigateTo('ad-detail', { id: shortId, categorySlug, title: slugSegment.slice(0, lastHyphenIdx).replace(/-/g, ' ') })
+      }
+      return
+    }
+
+    // Handle edit-ad: /modifier/{id}
+    if (pathSegments[0] === 'modifier' && pathSegments.length === 2) {
+      navigateTo('edit-ad', { id: pathSegments[1] })
+      return
+    }
+
+    // Handle standard pages
+    if (pathSegments.length === 1) {
+      const page = URL_TO_PAGE[pathSegments[0]]
+      if (page) {
+        navigateTo(page)
+      }
+      return
+    }
+
+    // Handle /annonces with no further segments → ads list
+    if (pathSegments[0] === 'annonces' && pathSegments.length === 1) {
+      navigateTo('ads')
+    }
+  }, [])
 
   // Safety fallback: hide splash after 8s max even if data not loaded
   useEffect(() => {
